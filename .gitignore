@@ -1,3 +1,7 @@
 *.o
 PcapInfo
 .vscode
+IntInfo
+*.pcap
+*.txt
+
