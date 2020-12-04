@@ -6,7 +6,10 @@
 #include <TcpLayer.h>
 #include <UdpLayer.h>
 
+#include <cstring>
 #include <iostream>
+#include <sstream>
+#include <unordered_map>
 #include <unordered_set>
 
 #include "CRC.h"
@@ -22,6 +25,13 @@ struct V4Tuple {
            proto == other.proto && l4Sport == other.l4Sport &&
            l4Dport == other.l4Dport;
   }
+
+  std::string ToString() const {
+    std::stringstream ss;
+    ss << std::hex << srcIp << ", " << std::hex << dstIp << ", " << std::hex
+       << (uint16_t)(proto) << ", " << std::dec << l4Sport << ", " << l4Dport;
+    return ss.str();
+  }
 };
 
 struct V4TupleHasher {
@@ -30,14 +40,30 @@ struct V4TupleHasher {
   }
 };
 
+bool SortFlows(const std::pair<V4Tuple, uint32_t>& a,
+               const std::pair<V4Tuple, uint32_t>& b) {
+  return a.second > b.second;
+}
+
 int main(int argc, char* argv[]) {
-  if (argc != 2) {
-    std::cout << "Input file name was not given";
+  bool printFlows = false;
+  std::string pcapFile;
+
+  if (argc < 2) {
+    std::cout << "Input file name was not given" << std::endl;
     return 1;
   }
 
+  if (std::strcmp(argv[1], "-v") == 0) {
+    printFlows = true;
+    pcapFile = argv[2];
+  } else {
+    pcapFile = argv[1];
+  }
+
   // open a pcap file for reading
-  pcpp::IFileReaderDevice* reader = pcpp::IFileReaderDevice::getReader(argv[1]);
+  pcpp::IFileReaderDevice* reader =
+      pcpp::IFileReaderDevice::getReader(pcapFile.c_str());
 
   if (!reader->open()) {
     delete reader;
@@ -72,11 +98,11 @@ int main(int argc, char* argv[]) {
            linkLayer == pcpp::LINKTYPE_DLT_RAW2) {
     std::cout << "Raw IP (" << linkLayer << ")";
   }
-  unsigned long totalPkts = 0;
-  unsigned long numIpv4 = 0;
-  unsigned long numIpv6 = 0;
-  unsigned long numOthers = 0;
-  std::unordered_set<V4Tuple, V4TupleHasher> flowCount;
+  uint32_t totalPkts = 0;
+  uint32_t numIpv4 = 0;
+  uint32_t numIpv6 = 0;
+  uint32_t numOthers = 0;
+  std::unordered_map<V4Tuple, uint32_t, V4TupleHasher> flows;
   std::unordered_set<uint32_t> flowHashes;
   pcpp::RawPacket rawPacket;
   while (pcapReader->getNextPacket(rawPacket)) {
@@ -102,17 +128,19 @@ int main(int argc, char* argv[]) {
       V4Tuple ftple = {src, dst, proto, l4Sport, l4Dport};
       uint32_t crc32 = CRC::Calculate(&ftple, sizeof(V4Tuple), CRC::CRC_32());
       flowHashes.insert(crc32);
-      flowCount.insert(ftple);
+
+      if (flows.find(ftple) == flows.end()) {
+        flows[ftple] = 1;
+      } else {
+        flows[ftple]++;
+      }
+
     } else if (ipv6Layer) {
       numIpv6++;
     } else {
       numOthers++;
     }
     totalPkts++;
-
-    if (totalPkts % 100000 == 0) {
-      std::cout << "\r" << totalPkts;
-    }
   }
 
   std::cout << std::endl;
@@ -122,9 +150,23 @@ int main(int argc, char* argv[]) {
             << (double)numIpv6 / totalPkts * 100 << "%)" << std::endl;
   std::cout << "Other types of packet: " << numOthers << " ("
             << (double)numOthers / totalPkts * 100 << "%)" << std::endl;
-  std::cout << "Total IPv4 5-tuples: " << flowCount.size() << std::endl;
+  std::cout << "Total IPv4 5-tuples: " << flows.size() << std::endl;
   std::cout << "Total IPv4 5-tuple hashes: " << flowHashes.size() << std::endl;
   std::cout << "Total: " << totalPkts << std::endl;
+
+  if (printFlows) {
+    std::vector<std::pair<V4Tuple, uint32_t>> flowsInOrder;
+    for (auto it = flows.begin(); it != flows.end(); ++it) {
+      flowsInOrder.push_back(std::make_pair(it->first, it->second));
+    }
+
+    sort(flowsInOrder.begin(), flowsInOrder.end(), SortFlows);
+
+    for (auto it = flowsInOrder.begin(); it != flowsInOrder.end(); ++it) {
+      std::cout << it->first.ToString() << " : "
+                << it->second << std::endl;
+    }
+  }
 
   reader->close();
   delete reader;
