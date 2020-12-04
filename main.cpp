@@ -1,22 +1,12 @@
-#include <EthLayer.h>
 #include <IPv4Layer.h>
 #include <IPv6Layer.h>
 #include <Packet.h>
-#include <PacketUtils.h>
 #include <PcapFileDevice.h>
-#include <PcapPlusPlusVersion.h>
 #include <RawPacket.h>
-#include <SystemUtils.h>
 #include <TcpLayer.h>
 #include <UdpLayer.h>
-#include <getopt.h>
-#include <stdlib.h>
 
-#include <cstring>
-#include <fstream>
-#include <functional>
 #include <iostream>
-#include <sstream>
 #include <unordered_set>
 
 #include "CRC.h"
@@ -90,7 +80,6 @@ int main(int argc, char* argv[]) {
   std::unordered_set<uint32_t> flowHashes;
   pcpp::RawPacket rawPacket;
   while (pcapReader->getNextPacket(rawPacket)) {
-    // parse the raw packet into a parsed packet
     pcpp::Packet parsedPacket(&rawPacket);
     pcpp::IPv4Layer* ipv4Layer = parsedPacket.getLayerOfType<pcpp::IPv4Layer>();
     pcpp::IPv6Layer* ipv6Layer = parsedPacket.getLayerOfType<pcpp::IPv6Layer>();
@@ -137,11 +126,7 @@ int main(int argc, char* argv[]) {
   std::cout << "Total IPv4 5-tuple hashes: " << flowHashes.size() << std::endl;
   std::cout << "Total: " << totalPkts << std::endl;
 
-  // close the file
   reader->close();
-
-  // free reader memory
   delete reader;
-
   return 0;
 }
