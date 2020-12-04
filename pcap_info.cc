@@ -12,38 +12,9 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "CRC.h"
+#include <CRC.h>
+#include "utils.h"
 
-struct V4Tuple {
-  uint32_t srcIp;
-  uint32_t dstIp;
-  uint8_t proto;
-  uint16_t l4Sport;
-  uint16_t l4Dport;
-  bool operator==(V4Tuple const& other) const {
-    return srcIp == other.srcIp && dstIp == other.dstIp &&
-           proto == other.proto && l4Sport == other.l4Sport &&
-           l4Dport == other.l4Dport;
-  }
-
-  std::string ToString() const {
-    std::stringstream ss;
-    ss << std::hex << srcIp << ", " << std::hex << dstIp << ", " << std::hex
-       << (uint16_t)(proto) << ", " << std::dec << l4Sport << ", " << l4Dport;
-    return ss.str();
-  }
-};
-
-struct V4TupleHasher {
-  std::size_t operator()(V4Tuple const& v4tuple) const noexcept {
-    return CRC::Calculate(&v4tuple, sizeof(V4Tuple), CRC::CRC_32());
-  }
-};
-
-bool SortFlows(const std::pair<V4Tuple, uint32_t>& a,
-               const std::pair<V4Tuple, uint32_t>& b) {
-  return a.second > b.second;
-}
 
 int main(int argc, char* argv[]) {
   bool printFlows = false;
